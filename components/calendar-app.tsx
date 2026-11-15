@@ -14,6 +14,7 @@ import {
   CALENDAR_THEME_IDS,
   deleteCalendarScheduleItem,
   deleteCalendarRecurrenceSeries,
+  excludeCalendarRecurrenceDate,
   loadCalendarConfig,
   loadOwnerCalendarPlans,
   saveCalendarConfig,
@@ -308,6 +309,7 @@ export function PhoneCalendarApp({
         repeatWeekly: true,
         repeatWeekdays: [...item.recurrence.weekdays],
         repeatUntil: item.recurrence.until,
+        recurrenceExcludedDates: item.recurrence.excludedDates || [],
         seriesId: item.recurrence.seriesId,
       } : {}),
       startTime: item.startTime,
@@ -344,7 +346,8 @@ export function PhoneCalendarApp({
       for (let offset = 0; offset < days; offset++) {
         const day = parseIsoDate(editingItem.date);
         day.setDate(day.getDate() + offset);
-        if (weekdays.includes(day.getDay())) dates.push(formatIsoDate(day));
+        const date = formatIsoDate(day);
+        if (weekdays.includes(day.getDay()) && !excludedDates.has(date)) dates.push(date);
       }
       if (!dates.length) {
         onNotice?.("这个日期范围内没有选中的星期，请延长截止日期或调整星期");
@@ -358,13 +361,14 @@ export function PhoneCalendarApp({
           getWeekStartIso(parseIsoDate(editingItem.originalDate || editingItem.date)), editingItem.id);
       }
       const seriesId = editingItem.seriesId || `calendar_series_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const excludedDates = new Set(editingItem.recurrenceExcludedDates || []);
       for (const date of dates) {
         upsertCalendarScheduleItem(selectedOwner.ownerType, selectedOwner.ownerId, getWeekStartIso(parseIsoDate(date)), {
           date, startTime: editingItem.startTime, endTime: editingItem.endTime,
           location: editingItem.location, title: editingItem.title,
           emoji: sanitizeScheduleEmoji(editingItem.emoji), source: "manual",
           colorKey: editingItem.colorKey ?? pickScheduleColorKey(editingItem.startTime),
-          recurrence: { seriesId, startDate: editingItem.date, until, weekdays },
+          recurrence: { seriesId, startDate: editingItem.date, until, weekdays, excludedDates: [...excludedDates] },
         });
       }
       setEditingItem(null);
@@ -421,7 +425,16 @@ export function PhoneCalendarApp({
   const handleDeleteItem = () => {
     if (!selectedOwner || !editingItem?.id) return;
     if (editingItem.seriesId) {
-      if (!window.confirm("删除整组重复日程（包括过去日期）？此操作不可撤销。")) return;
+      const choice = window.prompt("删除重复日程：输入 1 仅删除这一次，输入 2 删除整组。取消请输入其他内容。", "1");
+      if (choice === "1") {
+        excludeCalendarRecurrenceDate(selectedOwner.ownerType, selectedOwner.ownerId, editingItem.seriesId, editingItem.originalDate || editingItem.date);
+        setEditingItem(null);
+        refreshPlans();
+        window.dispatchEvent(new CustomEvent("calendar-updated"));
+        onNotice?.("本次日程已删除，之后编辑整组时也不会恢复");
+        return;
+      }
+      if (choice !== "2" || !window.confirm("删除整组重复日程（包括过去日期）？此操作不可撤销。")) return;
       deleteCalendarRecurrenceSeries(selectedOwner.ownerType, selectedOwner.ownerId, editingItem.seriesId);
       setEditingItem(null);
       refreshPlans();

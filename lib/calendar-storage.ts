@@ -201,6 +201,29 @@ export function upsertCalendarScheduleItem(
 }
 
 /** 删除指定重复组，其他日程保持不变。 */
+/** 仅删除重复组中的某一个日期，并把日期加入排除列表。 */
+export function excludeCalendarRecurrenceDate(
+  ownerType: CalendarOwnerType,
+  ownerId: string,
+  seriesId: string,
+  date: string,
+): void {
+  const store = loadStore();
+  const now = new Date().toISOString();
+  store.plans = store.plans.map(plan => {
+    if (plan.ownerType !== ownerType || plan.ownerId !== ownerId) return plan;
+    const hasSeries = plan.items.some(item => item.recurrence?.seriesId === seriesId);
+    if (!hasSeries) return plan;
+    const items = plan.items
+      .filter(item => !(item.recurrence?.seriesId === seriesId && item.date === date))
+      .map(item => item.recurrence?.seriesId === seriesId
+        ? { ...item, recurrence: { ...item.recurrence!, excludedDates: [...new Set([...(item.recurrence?.excludedDates || []), date])] }, updatedAt: now }
+        : item);
+    return { ...plan, items, updatedAt: now };
+  });
+  saveStore(store);
+}
+
 export function deleteCalendarRecurrenceSeries(
   ownerType: CalendarOwnerType,
   ownerId: string,

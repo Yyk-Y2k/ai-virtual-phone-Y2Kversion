@@ -27,6 +27,7 @@ export type CalendarScheduleItem = {
     startDate: string;
     until: string;
     weekdays: number[]; // JavaScript weekday: 0=周日，1=周一
+    excludedDates?: string[]; // 从重复组中单独删除的日期
   };
   source: "manual" | "generated";
   createdAt: string;

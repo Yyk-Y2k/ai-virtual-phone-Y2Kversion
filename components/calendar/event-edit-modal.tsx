@@ -20,6 +20,7 @@ export type CalendarEventDraft = {
   repeatWeekdays?: number[];
   repeatUntil?: string;
   seriesId?: string;
+  recurrenceExcludedDates?: string[];
 };
 
 const EMOJI_PRESETS = [
