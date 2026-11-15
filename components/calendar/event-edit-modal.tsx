@@ -16,6 +16,10 @@ export type CalendarEventDraft = {
   title: string;
   emoji: string;
   colorKey?: CalendarColorKey;
+  repeatWeekly?: boolean;
+  repeatWeekdays?: number[];
+  repeatUntil?: string;
+  seriesId?: string;
 };
 
 const EMOJI_PRESETS = [
@@ -62,6 +66,40 @@ export function CalendarEventEditModal({
         </div>
 
         <div className="modal-body hide-scrollbar flex flex-col gap-3 pb-10" data-ui="modal-body">
+          <div className="flex flex-col gap-2">
+            <label className="menu-desc" htmlFor="calendar-repeat">重复</label>
+            <select id="calendar-repeat" className="ui-input" value={draft.repeatWeekly ? "weekly" : "none"}
+              onChange={e => onChange({ ...draft, repeatWeekly: e.target.value === "weekly",
+                repeatWeekdays: draft.repeatWeekdays?.length ? draft.repeatWeekdays : [new Date(`${draft.date}T12:00:00`).getDay()],
+                repeatUntil: draft.repeatUntil || draft.endDate || draft.date })}>
+              <option value="none">不重复（按日期范围每天创建）</option>
+              <option value="weekly">每周重复 · 自选星期</option>
+            </select>
+            {draft.repeatWeekly ? <>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="重复星期">
+                {[1, 2, 3, 4, 5, 6, 0].map((day, index) => {
+                  const selected = (draft.repeatWeekdays || []).includes(day);
+                  return <button key={day} type="button" className="ui-btn ui-btn-outline" aria-pressed={selected}
+                    style={selected ? { background: "var(--accent, #6366f1)", color: "#fff" } : undefined}
+                    onClick={() => onChange({ ...draft, repeatWeekdays: selected
+                      ? (draft.repeatWeekdays || []).filter(value => value !== day)
+                      : [...(draft.repeatWeekdays || []), day] })}>
+                    {["周一", "周二", "周三", "周四", "周五", "周六", "周日"][index]}
+                  </button>;
+                })}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="ui-btn ui-btn-outline" onClick={() => onChange({ ...draft, repeatWeekdays: [1, 2, 3, 4, 5] })}>工作日</button>
+                <button type="button" className="ui-btn ui-btn-outline" onClick={() => onChange({ ...draft, repeatWeekdays: [6, 0] })}>周末</button>
+                <button type="button" className="ui-btn ui-btn-outline" onClick={() => onChange({ ...draft, repeatWeekdays: [1, 2, 3, 4, 5, 6, 0] })}>每天</button>
+              </div>
+              <label className="menu-desc">重复截止日期（含当天，最多一年）</label>
+              <Input type="date" min={draft.date} value={draft.repeatUntil || draft.date}
+                onChange={e => onChange({ ...draft, repeatUntil: e.target.value })} />
+              <p className="menu-desc">从开始日期到截止日期，仅在选中的星期创建日程；结束日期仅用于不重复模式。</p>
+            </> : null}
+            {draft.seriesId ? <p className="menu-desc">保存或删除作用于整组重复日程，包括过去的日期。开始日期为整组起始日期。</p> : null}
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label className="menu-desc ml-1">开始日期</label>
@@ -81,6 +119,7 @@ export function CalendarEventEditModal({
               <Input
                 type="date"
                 value={draft.endDate || draft.date}
+                disabled={draft.repeatWeekly}
                 min={draft.date}
                 onChange={e => onChange({ ...draft, endDate: e.target.value })}
               />
